@@ -1,0 +1,67 @@
+MULTIMODAL RAG ENGINE - HOW TO RUN
+
+Project root:
+/Users/sairammaruri/Documents/New git projects/multi-modal-engine
+
+1) Recommended setup (Python 3.11)
+
+cd "/Users/sairammaruri/Documents/New git projects/multi-modal-engine"
+python3.11 -m venv .venv
+source .venv/bin/activate
+pip install -U pip
+pip install -r requirements.txt
+cp .env.example .env
+# edit .env and set OPENAI_API_KEY=... (recommended for full quality)
+
+2) Start API
+
+uvicorn src.api:app --reload --host 0.0.0.0 --port 8000
+
+3) Optional: start Streamlit demo (new terminal)
+
+cd "/Users/sairammaruri/Documents/New git projects/multi-modal-engine"
+source .venv/bin/activate
+streamlit run src/demo.py
+
+4) Verify health
+
+curl http://localhost:8000/health
+
+5) Upload a PDF
+
+curl -X POST "http://localhost:8000/upload" \
+  -F "file=@/absolute/path/to/document.pdf"
+
+6) Query all indexed docs
+
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"What are the key findings?","top_k":5}'
+
+7) Query a specific document (use doc_id from upload response)
+
+curl -X POST "http://localhost:8000/query" \
+  -H "Content-Type: application/json" \
+  -d '{"query":"Summarize section 2","top_k":5,"doc_id":"<doc-id>"}'
+
+8) Document lifecycle endpoints
+
+# list documents
+curl http://localhost:8000/documents
+
+# status
+curl http://localhost:8000/status/<doc-id>
+
+# delete
+curl -X DELETE "http://localhost:8000/documents/<doc-id>"
+
+9) Run tests
+
+pytest tests/ -q
+
+Notes:
+- If OpenAI key is not configured, app runs in fallback mode (local embeddings + local summary answer).
+- If Qdrant is unavailable, app automatically uses in-memory vector storage.
+- If you see "ModuleNotFoundError: frontend", remove conflicting fitz package and reinstall PyMuPDF:
+  pip uninstall -y fitz
+  pip install pymupdf==1.23.26
