@@ -1,0 +1,21 @@
+# Core dependencies
+fastapi==0.109.0
+uvicorn==0.27.0
+streamlit==1.31.0
+python-multipart==0.0.9
+
+# Document processing
+pymupdf==1.23.26
+unstructured==0.12.4
+pillow==10.2.0
+pandas==2.2.0
+
+# Vector store and embeddings
+qdrant-client==1.7.3
+openai==1.12.0
+
+# Utilities
+python-dotenv==1.0.1
+pydantic==2.6.0
+numpy==1.26.3
+requests==2.31.0
