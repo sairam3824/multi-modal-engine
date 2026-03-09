@@ -489,7 +489,7 @@ Factors affecting performance:
 
 ## License
 
-Apache License 2.0 - See LICENSE file for details.
+MIT License - See LICENSE file for details.
 
 ## Citation
 

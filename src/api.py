@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 import uuid
+import anyio
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, File, HTTPException, UploadFile
@@ -98,7 +99,7 @@ async def upload_document(file: UploadFile = File(...)):
         table_extractor = TableExtractor()
 
         logger.info("Parsing PDF...")
-        elements = parser.parse(str(file_path))
+        elements = await anyio.to_thread.run_sync(parser.parse, str(file_path))
 
         # Process each element
         logger.info(f"Processing {len(elements)} elements...")
@@ -109,7 +110,9 @@ async def upload_document(file: UploadFile = File(...)):
             if element_type in {"image", "chart"} and element.get("content"):
                 try:
                     logger.info(f"Describing image on page {element.get('page')}")
-                    description = describer.describe(element["content"], element_type)
+                    description = await anyio.to_thread.run_sync(
+                        describer.describe, element["content"], element_type
+                    )
                     element["description"] = description
                     # Remove raw bytes after description
                     element["content"] = None
@@ -120,15 +123,17 @@ async def upload_document(file: UploadFile = File(...)):
 
             elif element_type == "table":
                 try:
-                    table_data = table_extractor.extract(element.get("content", {}))
+                    table_data = await anyio.to_thread.run_sync(
+                        table_extractor.extract, element.get("content", {})
+                    )
                     element["content"] = table_data
                 except Exception as e:
                     logger.error(f"Failed to extract table: {e}")
 
         # Index elements
         logger.info("Indexing elements...")
-        doc_id = vectorstore.index_elements(
-            elements, doc_name=original_filename, doc_id=doc_id
+        doc_id = await anyio.to_thread.run_sync(
+            vectorstore.index_elements, elements, original_filename, doc_id
         )
         stats = vectorstore.get_document_stats(doc_id) or {}
         _set_doc_status(
@@ -170,8 +175,8 @@ async def query_documents(request: QueryRequest):
                 raise HTTPException(404, f"Document not found: {request.doc_id}")
 
         # Search
-        results = searcher.search(
-            request.query, top_k=request.top_k, doc_id=request.doc_id
+        results = await anyio.to_thread.run_sync(
+            searcher.search, request.query, request.top_k, request.doc_id
         )
 
         if not results:
@@ -181,7 +186,9 @@ async def query_documents(request: QueryRequest):
             )
 
         # Generate answer
-        response = generator.generate(request.query, results)
+        response = await anyio.to_thread.run_sync(
+            generator.generate, request.query, results
+        )
         return QueryResponse(**response)
 
     except HTTPException:
@@ -262,10 +269,17 @@ async def delete_document(doc_id: str):
         deleted = vectorstore.delete_document(doc_id)
         if not deleted:
             raise HTTPException(500, "Failed to delete document")
-        _set_doc_status(doc_id, "deleted")
+        # Delete physical file if it exists
+        upload_dir = Path("uploads")
+        for stored_file in upload_dir.glob(f"{doc_id}_*"):
+            try:
+                os.remove(stored_file)
+                logger.info(f"Deleted file: {stored_file}")
+            except Exception as e:
+                logger.error(f"Failed to delete file {stored_file}: {e}")
 
         logger.info(f"Deleted document: {doc_id}")
-        return {"status": "success", "doc_id": doc_id, "message": "Document deleted"}
+        return {"status": "success", "doc_id": doc_id, "message": "Document and associated files deleted"}
 
     except HTTPException:
         raise

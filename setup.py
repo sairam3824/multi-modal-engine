@@ -14,5 +14,5 @@ setup(
     description="RAG pipeline for multimodal documents",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
-    license="Apache 2.0",
+    license="MIT",
 )
